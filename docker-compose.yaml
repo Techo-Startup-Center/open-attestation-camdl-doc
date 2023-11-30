@@ -1,0 +1,38 @@
+version: "3"
+
+services:
+  oa-issuer:
+    container_name: oa-issuer-svc
+    build:
+      context: ./oa-svc
+      dockerfile: Dockerfile
+    restart: "always"
+    environment:
+      - PORT=3000
+      - NODE_TYPE=(Standalone Mode (MASTER) or cluster Mode (1 MASTER, Multi WORKER))
+      - ISSUE_DELAY=(issuing interval in second eg 3)
+      - BATCH_DELAY=(batch interval in second)
+      - RETRY_DELAY=(retry interval in second)
+      - RPC_POOLING_INTERVAL=(rpc_pooling_interval in ms eg 300)
+      - SIZE_LIMIT=(size limit for example 20mb)
+      - DOCUMENT_STORE=(document store contract address)
+      - IDENTITY_LOCATION=(eg ekycis-demo.svathana.com)
+      - IDENTITY_TYPE=(DNS-TXT)
+      - ISSUER_NAME=(Organization NAME FOR ISSUER)
+      - ISSUER_URL=(https://ekycis-demo.svathana.com URL FOR ISSUER)
+      - WALLET_FILE=(location of wallet.json)
+      - WALLET_PWD=(wallet password)
+      - NETWORK=(camdl-staging for staging, camdl for mainnet)
+      - ADMIN_SECRET=(API secret)
+      - DATABASE_HOST=(db host)
+      - DATABASE_PORT=(db port)
+      - DATABASE_NAME=(db name)
+      - DATABASE_USER=(db user)
+      - DATABASE_PASSWORD=(db password)
+    volumes:
+      - ./wallet.json:/usr/src/app/wallet.json
+    ports:
+      - "3000:3000"
+volumes:
+  mongodb_data1:
+    external: true
