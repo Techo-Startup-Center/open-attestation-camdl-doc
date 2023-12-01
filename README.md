@@ -63,7 +63,7 @@ Key file can be generated with command
 
 #### MongoDb Service
 
-edit the environment variable within docker-compose-mongo.yaml file, then docker compose up
+edit the environment variable within docker-compose-mongo.yaml file and ./mongo/rs-initiate.js, then docker compose up
 
 ` docker-compose -f docker-compose-mongo.yaml up -d`
 
