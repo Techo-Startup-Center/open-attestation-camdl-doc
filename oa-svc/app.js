@@ -4,10 +4,12 @@ const wrapRoute = require("./routes/wrap");
 const verifyRoute = require("./routes/verify");
 const revokeRoute = require("./routes/revoke");
 const encryptionRoute = require("./routes/encryption");
+const obfuscateRoute = require("./routes/obfuscation");
 const mongoose = require("mongoose");
 const moment = require("moment");
 const mongoConnect = require("./config/mongo");
 const { Worker } = require("node:worker_threads");
+const { obfuscate } = require("@govtechsg/open-attestation");
 
 var app = express();
 const PORT = process.env.PORT;
@@ -31,6 +33,7 @@ app.use("/api/v1/document", isAuth, wrapRoute);
 app.use("/api/v1/document", isAuth, revokeRoute);
 app.use("/api/v1/document", isAuth, encryptionRoute);
 app.use("/api/v1/verify", verifyRoute);
+app.use("/api/v1/document", isAuth, obfuscateRoute );
 
 // * Not found handler
 app.use(function (_, res) {
