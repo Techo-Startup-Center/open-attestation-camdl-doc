@@ -87,7 +87,6 @@ async function issueMerkleRoots(roots) {
     } else {
       tx = await documentStore.issue(merkleRoots[0], { nonce: await getSetNonce(signer) });
     }
-    console.log(tx);
     await tx.wait();
     for (const root of merkleRoots) {
       await updateMerkleRootByRoot(root);
