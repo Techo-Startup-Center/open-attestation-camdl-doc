@@ -6,6 +6,8 @@ const docuStore = require("@govtechsg/document-store");
 const fs = require("fs");
 const dotenv = require("dotenv");
 const { updateMerkleRootByRoot, updateRevokeDocument } = require("./mongo");
+const nonceRespository = require("../models/nonce");
+const lockRespository = require("../models/issueLock");
 dotenv.config();
 
 const networks = {
@@ -66,23 +68,33 @@ async function issueMerkleRoots(roots) {
   if (!roots || roots.length === 0) {
     return;
   }
-
+  if (await getLockIssueState()) {
+    return;
+  }
   let merkleRoots = roots.map((root) =>
     root.slice(0, 2) === "0x" ? root : "0x" + root
   );
-  let signer = getSigner();
-  const provider = getProvider();
-  signer = signer.connect(provider);
-  let documentStore;
   try {
+    await lockIssueState(true);
+    let signer = getSigner();
+    const provider = getProvider();
+    signer = signer.connect(provider);
+    let documentStore;
     documentStore = await docuStore.connect(process.env.DOCUMENT_STORE, signer);
     let tx;
     if (roots.length > 1) {
-      tx = await documentStore.bulkIssue(merkleRoots);
+      tx = await documentStore.bulkIssue(merkleRoots, { nonce: await getSetNonce(signer) });
     } else {
-      tx = await documentStore.issue(merkleRoots[0]);
+      tx = await documentStore.issue(merkleRoots[0], { nonce: await getSetNonce(signer) });
     }
+    console.log(tx);
     await tx.wait();
+    for (const root of merkleRoots) {
+      await updateMerkleRootByRoot(root);
+    }
+    console.log(
+      `INFO ${moment().toISOString()} - Successfully issued roots: ${merkleRoots}`
+    );
   } catch (err) {
     for (const root of merkleRoots) {
       const issued = await documentStore.isIssued(root);
@@ -94,6 +106,8 @@ async function issueMerkleRoots(roots) {
     err.status = 500;
     err.code = "INTERNAL_SERVER_ERROR";
     throw err;
+  } finally {
+    await lockIssueState(false);
   }
 }
 
@@ -128,26 +142,33 @@ const verifyDocWithContract = async (netId, addr, targetHash, merkleRoot) => {
 };
 
 const revokeWithContract = async (targetHashes) => {
-  let signer = getSigner();
-  const provider = getProvider();
-  signer = signer.connect(provider);
-  let hashes = targetHashes.map((root) =>
-    root.slice(0, 2) === "0x" ? root : "0x" + root
-  );
-  let documentStore;
+  if (await getLockIssueState()) {
+    return;
+  }
   try {
+    await lockIssueState(true);
+    let signer = getSigner();
+    const provider = getProvider();
+    signer = signer.connect(provider);
+    let hashes = targetHashes.map((root) =>
+      root.slice(0, 2) === "0x" ? root : "0x" + root
+    );
+    let documentStore;
     documentStore = await docuStore.connect(process.env.DOCUMENT_STORE, signer);
     let tx;
     if (targetHashes.length === 1) {
-      tx = await documentStore.revoke(hashes[0]);
+      tx = await documentStore.revoke(hashes[0], { nonce: await getSetNonce(signer) });
     } else {
-      tx = await documentStore.bulkRevoke(hashes);
+      tx = await documentStore.bulkRevoke(hashes, { nonce: await getSetNonce(signer) });
     }
     await tx.wait();
-    
-    for(const hash of targetHashes) {
+
+    for (const hash of targetHashes) {
       await updateRevokeDocument(hash);
     }
+    console.log(
+      `INFO ${moment().toISOString()} - Successfully revoke hashes: ${merkleRoots}`
+    );
   } catch (err) {
     for (const hash of targetHashes) {
       const isRevoked = await documentStore.isRevoked(hash.slice(0, 2) === "0x" ? hash : "0x" + hash);
@@ -158,11 +179,50 @@ const revokeWithContract = async (targetHashes) => {
     err.status = 500;
     err.code = "INTERNAL_SERVER_ERROR";
     throw err;
+  } finally {
+    await lockIssueState(false);
   }
 };
+
+const getSetNonce = async (signer) => {
+  let lastestNonce = await signer.getNonce();
+  // get latest Nonce.find base on create date
+  let dbNonce = await nonceRespository.findOne().sort({ createdDate: -1 });
+  if (dbNonce) {
+    if (lastestNonce < dbNonce.nonce) {
+      lastestNonce = dbNonce.nonce + 1;
+    }
+    // save dbnonce to db
+    dbNonce.nonce = lastestNonce;
+    await dbNonce.save();
+  } else {
+    dbNonce = await nonceRespository.create({ nonce: lastestNonce });
+  }
+  return dbNonce.nonce;
+};
+
+const lockIssueState = async (status) => {
+  let lockStatus = await lockRespository.findOne().sort({ createdDate: -1 });
+  if (lockStatus) {
+    lockStatus.status = status;
+    await lockStatus.save();
+  } else {
+    lockStatus = await lockRespository.create({ status: status });
+  }
+}
+const getLockIssueState = async () => {
+  let lockStatus = await lockRespository.findOne().sort({ createdDate: -1 });
+  if (lockStatus) {
+    return lockStatus.status;
+  } else {
+    await lockRespository.create({ status: false });
+    return false;
+  }
+}
 
 module.exports = {
   issueMerkleRoots,
   verifyDocWithContract,
   revokeWithContract,
+  getSetNonce
 };
