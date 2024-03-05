@@ -1,5 +1,6 @@
 const { Wallet, JsonRpcProvider } = require("ethers");
 const Web3 = require("web3");
+const moment = require("moment");
 const getNetworkById = require("./network");
 const openattestationABI = require("./abi");
 const docuStore = require("@govtechsg/document-store");
@@ -74,12 +75,12 @@ async function issueMerkleRoots(roots) {
   let merkleRoots = roots.map((root) =>
     root.slice(0, 2) === "0x" ? root : "0x" + root
   );
+  let documentStore
   try {
     await lockIssueState(true);
     let signer = getSigner();
     const provider = getProvider();
     signer = signer.connect(provider);
-    let documentStore;
     documentStore = await docuStore.connect(process.env.DOCUMENT_STORE, signer);
     let tx;
     if (roots.length > 1) {
@@ -96,12 +97,15 @@ async function issueMerkleRoots(roots) {
     );
   } catch (err) {
     for (const root of merkleRoots) {
-      const issued = await documentStore.isIssued(root);
-      if (issued) {
-        console.log("Issued root:", root);
-        await updateMerkleRootByRoot(root);
+      if (documentStore) {
+        const issued = await documentStore.isIssued(root);
+        if (issued) {
+          console.log("Issued root:", root);
+          await updateMerkleRootByRoot(root);
+        }
       }
     }
+    console.log(err.message || "An unexpected error has occurred")
     err.status = 500;
     err.code = "INTERNAL_SERVER_ERROR";
     throw err;
@@ -144,6 +148,7 @@ const revokeWithContract = async (targetHashes) => {
   if (await getLockIssueState()) {
     return;
   }
+  let documentStore;
   try {
     await lockIssueState(true);
     let signer = getSigner();
@@ -152,7 +157,6 @@ const revokeWithContract = async (targetHashes) => {
     let hashes = targetHashes.map((root) =>
       root.slice(0, 2) === "0x" ? root : "0x" + root
     );
-    let documentStore;
     documentStore = await docuStore.connect(process.env.DOCUMENT_STORE, signer);
     let tx;
     if (targetHashes.length === 1) {
@@ -170,11 +174,14 @@ const revokeWithContract = async (targetHashes) => {
     );
   } catch (err) {
     for (const hash of targetHashes) {
-      const isRevoked = await documentStore.isRevoked(hash.slice(0, 2) === "0x" ? hash : "0x" + hash);
-      if (isRevoked) {
-        await updateRevokeDocument(hash);
+      if (documentStore) {
+        const isRevoked = await documentStore.isRevoked(hash.slice(0, 2) === "0x" ? hash : "0x" + hash);
+        if (isRevoked) {
+          await updateRevokeDocument(hash);
+        }
       }
     }
+    console.log(err.message || "An unexpected error has occurred")
     err.status = 500;
     err.code = "INTERNAL_SERVER_ERROR";
     throw err;
