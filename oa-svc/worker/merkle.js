@@ -27,17 +27,9 @@ setInterval(async () => {
     const merkleRoots = roots.map((root) => root.issuedRoot);
 
     await issueMerkleRoots(merkleRoots);
-
-    Promise.allSettled(
-      roots.map(async (root) => await updateMerkleRoot(root._id))
-    );
-    console.log(
-      `INFO ${moment().toISOString()} - Successfully issued roots: ${merkleRoots}`
-    );
   } catch (err) {
     console.error(
-      `ERROR ${moment().toISOString()} - ${
-        err.message || "An unexpected error has occurred"
+      `ERROR ${moment().toISOString()} - ${err.message || "An unexpected error has occurred"
       }`
     );
   } finally {
