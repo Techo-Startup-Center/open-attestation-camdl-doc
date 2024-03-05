@@ -131,3 +131,4 @@ dist
 wallet.json
 /tmp
 .env
+deployment/
